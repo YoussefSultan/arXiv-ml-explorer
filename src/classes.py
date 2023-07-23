@@ -9,6 +9,9 @@ import plotly.express as px
 import numpy as np
 import platform
 import os
+from transformers import LlamaForCausalLM, LlamaTokenizer
+from streamlit.connections import ExperimentalBaseConnection
+from streamlit.runtime.caching import cache_data
 
 class ArxivAPI:
     """
@@ -132,12 +135,6 @@ class Visualize:
         fig.update_layout(barmode='stack')
         return fig
 
-
-from streamlit.connections import ExperimentalBaseConnection
-from streamlit.runtime.caching import cache_data
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-
-
 class checkDeploymentEnv:
     def __init__(self):
         self.result = self.check()
@@ -163,17 +160,18 @@ class HuggingFaceConnection(ExperimentalBaseConnection):
             model_name = self._secrets['model_name']
         
         # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        self.tokenizer = LlamaTokenizer.from_pretrained(model_name)
+        self.model = LlamaForCausalLM.from_pretrained(model_name)
 
     def generate(self, input_text: str, **kwargs) -> str:
+        
         inputs = self.tokenizer(input_text, return_tensors="pt")
 
         # You can tweak these settings as needed
-        max_length = kwargs.get('max_length', 128)
-        temperature = kwargs.get('temperature', 1.0)
+        max_length = kwargs.get('max_length', 1024)
+        temperature = kwargs.get('temperature', .9)
         top_k = kwargs.get('top_k', 50)
-        top_p = kwargs.get('top_p', 1.0)
+        top_p = kwargs.get('top_p', .9)
 
         generate_ids = self.model.generate(inputs.input_ids, max_length=max_length,
                                            temperature=temperature, top_k=top_k, top_p=top_p)
