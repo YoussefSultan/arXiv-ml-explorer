@@ -7,8 +7,8 @@ import dateutil.parser
 import pandas as pd
 import plotly.express as px
 import numpy as np
-import plotly.graph_objs as go
-
+import platform
+import os
 
 class ArxivAPI:
     """
@@ -103,14 +103,80 @@ class Visualize:
     """
     def __init__(self, df):
         self.df = df
+        #self.color_dict = {'topic1':'#1f77b4', 'topic2':'#ff7f0e', 'topic3':'#2ca02c', 'topic4':'#d62728', 'topic5':'#9467bd', ...}
 
-    def plot(self,number):
+    def plot(self,number, color):
         self.df['date'] = pd.to_datetime(self.df['date'])
         df_grouped = self.df.groupby([self.df['date'].dt.date, 'topics']).size().reset_index(name='count')
         df_wide = df_grouped.pivot(index='date', columns='topics', values='count').reset_index().fillna(0)
 
         fig = px.bar(df_wide, x='date', y=df_wide.columns[1:],
                      labels={'value':'Frequency', 'date':'Date', 'variable':'Topic Summary'},
-                     title=f'Topic Distribution Over Time for the Last {number} Machine Learning Papers on ArXiv')
+                     title=f'Topic Distribution Over Time for the Last {number} Machine Learning Papers on ArXiv',
+                     color_discrete_sequence=color)
         fig.update_layout(barmode='stack')
         return fig
+    
+    def plot2(self, number, color):
+        self.df['date'] = pd.to_datetime(self.df['date'])
+        df_grouped = self.df.groupby([self.df['date'].dt.date, 'topics']).size().reset_index(name='count')
+        df_total_count_per_date = self.df.groupby([self.df['date'].dt.date]).size().reset_index(name='count')
+        df_counts = df_grouped.merge(df_total_count_per_date, on='date',how='left')
+        df_counts['ratio'] = df_counts.count_x / df_counts.count_y
+        df_wide_proportions = df_counts.pivot(index='date', columns='topics', values='ratio').reset_index().fillna(0)
+
+        fig = px.bar(df_wide_proportions, x='date', y=df_wide_proportions.columns[1:],
+                    labels={'value':'Proportion', 'date':'Date', 'variable':'Topic Summary'},
+                    title=f'Topic Proportion Over Time for the Last {number} Machine Learning Papers on ArXiv',
+                    color_discrete_sequence=color)
+        fig.update_layout(barmode='stack')
+        return fig
+
+
+from streamlit.connections import ExperimentalBaseConnection
+from streamlit.runtime.caching import cache_data
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+
+class checkDeploymentEnv:
+    def __init__(self):
+        self.result = self.check()
+
+    def check(self):
+        if platform.system() == 'Windows':
+            return "False"
+        else:
+            return "True"
+    
+    def __repr__(self):
+        return self.result
+
+
+class HuggingFaceConnection(ExperimentalBaseConnection):
+    """Basic st.experimental_connection implementation for Hugging Face Models"""
+
+    def _connect(self, **kwargs):
+        # Get model name from secrets or kwargs
+        if 'model_name' in kwargs:
+            model_name = kwargs.pop('model_name')
+        else:
+            model_name = self._secrets['model_name']
+        
+        # Load tokenizer and model
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+
+    def generate(self, input_text: str, **kwargs) -> str:
+        inputs = self.tokenizer(input_text, return_tensors="pt")
+
+        # You can tweak these settings as needed
+        max_length = kwargs.get('max_length', 128)
+        temperature = kwargs.get('temperature', 1.0)
+        top_k = kwargs.get('top_k', 50)
+        top_p = kwargs.get('top_p', 1.0)
+
+        generate_ids = self.model.generate(inputs.input_ids, max_length=max_length,
+                                           temperature=temperature, top_k=top_k, top_p=top_p)
+
+        result = self.tokenizer.decode(generate_ids[0], skip_special_tokens=True)
+        return result
