@@ -8,3 +8,4 @@ transformers==4.31.0
 sentencepiece==0.1.99
 gitpython==3.1.32
 torch
+torchvision 
