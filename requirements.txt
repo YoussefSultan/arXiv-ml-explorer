@@ -7,3 +7,4 @@ streamlit==1.25.0
 transformers==4.31.0
 sentencepiece==0.1.99
 gitpython==3.1.32
+torch==2.0.1
