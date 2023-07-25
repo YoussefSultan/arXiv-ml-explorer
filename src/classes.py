@@ -12,6 +12,9 @@ import os
 from transformers import pipeline
 from streamlit.connections import ExperimentalBaseConnection
 from streamlit.runtime.caching import cache_data
+from transformers import DistilBertTokenizer, DistilBertForQuestionAnswering
+import torch
+
 
 class ArxivAPI:
     """
@@ -147,9 +150,17 @@ class LanguageModelConnection(ExperimentalBaseConnection):
         
         # Load model
         self.model = pipeline("question-answering", model=model_name)
+
+        self.tokenizer = DistilBertTokenizer.from_pretrained(model_name)
+        self.model = DistilBertForQuestionAnswering.from_pretrained(model_name)
+
     def generate(self, context: str, input_text: str = "What does this paper present?") -> str:
         
-        result = self.model(question=input_text, context=context)
-        
-        return result['answer']
+        inputs = self.tokenizer(input_text, context, return_tensors="pt")
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+        answer_start_index = torch.argmax(outputs.start_logits)
+        answer_end_index = torch.argmax(outputs.end_logits)
+        predict_answer_tokens = inputs.input_ids[0, answer_start_index : answer_end_index + 1]
+        return self.tokenizer.decode(predict_answer_tokens)
     
