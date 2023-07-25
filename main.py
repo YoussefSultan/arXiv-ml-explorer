@@ -22,13 +22,16 @@ st.set_page_config(page_title="ML Paper Topic Viz",
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 # if on streamlit download the model
 if os.name == 'posix':
-    @st.cache(allow_output_mutation=True)
-    def cached_download(git_url, path_to_clone_to):
-        Repo.clone_from(git_url, path_to_clone_to)
-    
-    path_to_clone_to = '.'
-    git_url = st.secrets["connections"]["bert"]["model_location"]
-    cached_download(git_url,path_to_clone_to)
+    try:
+        @st.cache(allow_output_mutation=True)
+        def cached_download(git_url, path_to_clone_to):
+            Repo.clone_from(git_url, path_to_clone_to)
+        
+        path_to_clone_to = '.'
+        git_url = st.secrets["connections"]["bert"]["model_location"]
+        cached_download(git_url,path_to_clone_to)
+    except:
+        pass
 else:
     st.write('Debugging...')
 
