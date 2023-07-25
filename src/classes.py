@@ -136,7 +136,7 @@ class Visualize:
         return fig
 
 class LanguageModelConnection(ExperimentalBaseConnection):
-    """Basic st.experimental_connection implementation for Hugging Face Models"""
+    """Basic st.experimental_connection implementation for Language Models"""
 
     def _connect(self, **kwargs):
         # Get model name from secrets or kwargs
