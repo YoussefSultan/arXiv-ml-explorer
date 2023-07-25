@@ -28,7 +28,7 @@ if os.name == 'posix':
         path_to_clone_to = '.'
         git_url = st.secrets["connections"]["bert"]["model_location"]
         cached_download(git_url,path_to_clone_to)
-    except:
+    except Exception as E:
         print(e)
         pass
 else:
