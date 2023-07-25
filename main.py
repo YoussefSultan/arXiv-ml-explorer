@@ -31,6 +31,7 @@ if os.name == 'posix':
         git_url = st.secrets["connections"]["bert"]["model_location"]
         cached_download(git_url,path_to_clone_to)
     except:
+        print("Model already downloaded...")
         pass
 else:
     st.write('Debugging...')
