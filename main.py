@@ -24,14 +24,14 @@ st.set_page_config(page_title="ML Paper Topic Viz",
 st.markdown("""
 <style>
 .bottom-bar {
-  background-color: #f8f9fa;
-  color: #343a40;
+  background-color: #000000;
+  color: #FFFFFF;
   padding: 0px; 
   position: fixed;
   width: 90%;
   margin: auto;
   bottom: 0;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: sans-serif;
   display: flex;
   justify-content: center;
   align-items: center;
