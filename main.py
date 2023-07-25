@@ -1,14 +1,16 @@
 import streamlit as st
-from src.classes import ArxivAPI, ProcessingData, Visualize, checkDeploymentEnv, HuggingFaceConnection
+from src.classes import ArxivAPI, ProcessingData, Visualize, LanguageModelConnection
 import plotly.colors
-import os
 import time
 import pandas as pd
 from datetime import datetime
+import sys
+import subprocess
+from git import Repo
+import os
 
-
-
-# # # # # # # # # # # # # # Config # # # # # # # # # # # # # # # # # # 
+# >> Page Config
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 st.set_page_config(page_title="ML Paper Topic Viz",
         page_icon="chart_with_upwards_trend",
         layout="wide")
@@ -16,16 +18,25 @@ st.set_page_config(page_title="ML Paper Topic Viz",
 
 
 
+# >> Download Model Specified in Secrets
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
-# @st.cache_resource 
-# def download_model():
-#     hf_read = st.secrets['connections']['my_model']['hf_read']
-#     result = os.system(f"export HF_TOKEN={hf_read}; git clone https://huggingface.co/meta-llama/Llama-2-7b-chat-hf")
-#     return result
+# if on streamlit download the model
+if os.name == 'posix':
+    @st.cache(allow_output_mutation=True)
+    def cached_download(git_url, path_to_clone_to):
+        Repo.clone_from(git_url, path_to_clone_to)
+    
+    path_to_clone_to = '.'
+    git_url = st.secrets["connections"]["bert"]["model_location"]
+    cached_download(git_url,path_to_clone_to)
+else:
+    st.write('Debugging...')
+
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
 
 
+# >> UI
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 st.markdown("""
 <style>
@@ -64,9 +75,11 @@ This method takes into account the following parameters controlled by the slider
 The identified topics and their top words are then displayed in the main area of the app, with their distribution over time visualized as a stacked bar chart.
                     
 """)
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
 
 
+# >> Instantiate streamlit caching for our processing to ensure we don't call the API each time
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 @st.cache_data(show_spinner="Fetching data from ArXiV...")
 def fetch_papers(number):
@@ -77,11 +90,15 @@ def fetch_papers(number):
 def process_papers(df, num_topics, num_top_words):
     processor = ProcessingData(df,num_topics,num_top_words,num_top_words)
     return processor.process()
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
-# Create sliders in the sidebar
+
+
+# >> SideBar Sliders
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 num_topics = st.sidebar.slider("Number of topics", 1, 10, 10)
 num_top_words = st.sidebar.slider("Number of top words", 1, 10, 6)
-number = st.sidebar.slider("Number of papers", 1, 30000, 3000)
+number = st.sidebar.slider("Number of papers", 1, 10000, 3000)
 color_options = {
     1: plotly.colors.qualitative.Plotly,
     2: plotly.colors.qualitative.Dark24,
@@ -96,6 +113,7 @@ color = st.slider("Graph color", 1, 7, 1)
 
 
 
+# >> API, Processing, Visualization
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 st.title('Topics Over Time for ArXiv Machine Learning Papers')        #
                                                                       #
@@ -117,27 +135,48 @@ st.plotly_chart(fig2, use_container_width=True)                       #
 
 
 
+# >> Download
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
-ask_llama = st.button('Ask llama V2 about a random insight regarding this data')
+col1, col2 = st.columns(2)
+with col2:
+    st.download_button('Download the dataset', 
+                       df2.to_csv(index=False).encode('utf-8'),
+                       f'ArXiv_ML_Papers_{str(datetime.today())}.csv',
+                        'text/csv',
+                        key='download-csv')
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
-# Pick a random paper from the bunch
+
+
+# >> Pick a random paper from the bunch
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 random_paper = df2.sample(n=1)
 title = random_paper['title'].values[0]
+summary = random_paper['summary'].values[0]
 topics = random_paper["topics"].values[0]
 date = pd.to_datetime(random_paper["date"].values[0])
 days_ago = (datetime.today() - date).days
-prompt = f"""This research paper {title} was published {days_ago} days ago. Tell us some insights based on {[i for i in topics.split(' ')]}"""
+Intro = f"""A research paper {title} was published {days_ago} days ago. Based on its topic {[i for i in topics.split(' ')]} it talks about """
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
+
+
+# >> Chat Bot Setup
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if ask_llama:
+with col1:
+    ask_bert = st.button('Ask bert about a random insight regarding this data')
+
+if ask_bert:
     st.session_state.messages = []  # Clear previous messages
     with st.chat_message("Assistant"):
         message_placeholder = st.empty()
         full_response = ""
-        conn = st.experimental_connection('my_model', type=HuggingFaceConnection)
-        response = conn.generate(prompt).replace(prompt, '').strip() if checkDeploymentEnv() else 'model offline'
+        conn = st.experimental_connection('bert', type=LanguageModelConnection)
+        response = conn.generate(context=summary)
+        response = Intro + response
         for char in response:
             full_response += char
             message_placeholder.markdown(full_response + "▌")
@@ -148,9 +187,8 @@ if ask_llama:
 
     
 
+# >> Signature
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
-
-
 st.sidebar.markdown("""
 Designed by [Youssef Sultan](https://www.linkedin.com/in/YoussefSultan)
 """)

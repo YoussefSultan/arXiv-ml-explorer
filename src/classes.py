@@ -9,7 +9,7 @@ import plotly.express as px
 import numpy as np
 import platform
 import os
-from transformers import LlamaForCausalLM, LlamaTokenizer
+from transformers import pipeline
 from streamlit.connections import ExperimentalBaseConnection
 from streamlit.runtime.caching import cache_data
 
@@ -135,21 +135,7 @@ class Visualize:
         fig.update_layout(barmode='stack')
         return fig
 
-class checkDeploymentEnv:
-    def __init__(self):
-        self.result = self.check()
-
-    def check(self):
-        if platform.system() == 'Windows':
-            return "False"
-        else:
-            return "True"
-    
-    def __repr__(self):
-        return self.result
-
-
-class HuggingFaceConnection(ExperimentalBaseConnection):
+class LanguageModelConnection(ExperimentalBaseConnection):
     """Basic st.experimental_connection implementation for Hugging Face Models"""
 
     def _connect(self, **kwargs):
@@ -159,22 +145,11 @@ class HuggingFaceConnection(ExperimentalBaseConnection):
         else:
             model_name = self._secrets['model_name']
         
-        # Load tokenizer and model
-        self.tokenizer = LlamaTokenizer.from_pretrained(model_name)
-        self.model = LlamaForCausalLM.from_pretrained(model_name)
-
-    def generate(self, input_text: str, **kwargs) -> str:
+        # Load model
+        self.model = pipeline("question-answering", model=model_name)
+    def generate(self, context: str, input_text: str = "What does this paper present?") -> str:
         
-        inputs = self.tokenizer(input_text, return_tensors="pt")
-
-        # You can tweak these settings as needed
-        max_length = kwargs.get('max_length', 1024)
-        temperature = kwargs.get('temperature', .9)
-        top_k = kwargs.get('top_k', 50)
-        top_p = kwargs.get('top_p', .9)
-
-        generate_ids = self.model.generate(inputs.input_ids, max_length=max_length,
-                                           temperature=temperature, top_k=top_k, top_p=top_p)
-
-        result = self.tokenizer.decode(generate_ids[0], skip_special_tokens=True)
-        return result
+        result = self.model(question=input_text, context=context)
+        
+        return result['answer']
+    
