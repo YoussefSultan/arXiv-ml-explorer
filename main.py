@@ -24,8 +24,7 @@ st.set_page_config(page_title="ML Paper Topic Viz",
 # if on streamlit download the model
 if os.name == 'posix':
     try:
-        subprocess.run(["git", "lfs", "version"], check=True)
-        subprocess.run(["apt-get", "install", "git-lfs"], check=True)
+        subprocess.run(["git", "lfs", "install"], check=True)
         path_to_clone_to = '.'
         git_url = st.secrets["connections"]["bert"]["model_location"]
         cached_download(git_url,path_to_clone_to)
